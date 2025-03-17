@@ -5,12 +5,15 @@
         当前值相比均值上涨超过 4%, 不进行操作。
 '''
 import pandas as pd
-import numpy as np
 import math
-from os.path import join, split
+import numpy as np
+from os.path import split
+from tqdm import tqdm
+import seaborn as sns  
+import matplotlib.pyplot as plt
 
 
-def main(df, index_name, diff_thresh=0.04, unit_share=1000, date_step=36):
+def main(df, index_name, diff_thresh=0.04, unit_share=1000, date_step=36, verbose=True):
     '''
         src_fn: 指数存档文件
         diff_thresh: 变化反应阈值(默认4%)
@@ -27,9 +30,10 @@ def main(df, index_name, diff_thresh=0.04, unit_share=1000, date_step=36):
     total_investment = 0  # 累计投入本金
     total_shares = 0      # 累计持有份额
     trade_log = []        # 交易记录
+    money_pool = 0
 
     # 策略执行
-    for current_date in monthly_data.index[2:]:
+    for current_date in monthly_data.index[0:]:
         # 获取当前价格和历史数据
         current_price = monthly_data.loc[current_date, index_name]
         start_date = current_date - pd.DateOffset(months=date_step)
@@ -40,13 +44,15 @@ def main(df, index_name, diff_thresh=0.04, unit_share=1000, date_step=36):
         pct_diff = (current_price - mean_price) / mean_price
         
         # 执行交易逻辑
+        money_pool +=  unit_share
         if pct_diff < -diff_thresh:
-            investment = unit_share * math.ceil(pct_diff / diff_thresh)
+            investment = min(money_pool, unit_share * math.ceil(-pct_diff / diff_thresh))
         elif abs(pct_diff) <= diff_thresh:
             investment = unit_share
         else:
             investment = 0
-        
+        money_pool -= investment
+
         # 记录交易
         if investment > 0:
             shares = investment / current_price
@@ -55,8 +61,9 @@ def main(df, index_name, diff_thresh=0.04, unit_share=1000, date_step=36):
             trade_log.append({
                 'date': current_date,
                 'action': f'定投{investment}元',
-                'price': current_price,
-                'shares': shares
+                '当前价格': current_price,
+                '份额': shares,
+                '资金池': money_pool
             })
 
     # 计算最终收益（以最后一个交易日收盘价计算）
@@ -65,22 +72,55 @@ def main(df, index_name, diff_thresh=0.04, unit_share=1000, date_step=36):
     total_return = total_assets - total_investment
 
     # 输出结果
-    print(f"策略执行期间共定投 {len(trade_log)} 次")
-    print(f"累计投入本金: {total_investment:.2f} 元")
-    print(f"最终持有份额: {total_shares:.2f}")
-    print(f"最终资产价值: {total_assets:.2f} 元")
-    print(f"绝对收益: {total_return:.2f} 元")
-    print(f"收益率: {total_return/total_investment*100:.2f}%")
+    value0 = monthly_data[index_name].iloc[0]
+    value1 = monthly_data[index_name].iloc[-1]
+    return_rate = total_return / (total_investment + money_pool)
+    num_year = int(len(monthly_data) / 12 + 0.5)
+    if verbose:
+        print(f"策略执行期间共定投 {len(trade_log)} 次")
+        print(f"累计投入本金: {total_investment+money_pool} 元")
+        print(f"最终持有份额: {total_shares:.2f}")
+        print(f"最终资产价值: {total_assets+money_pool:.2f} 元")
+        print(f"绝对收益: {total_return:.2f} 元")
+        print(f"收益率: {return_rate*100:.2f}%")
+        print(f"年化收益率: {return_rate/num_year*100:.2f}%")
+        print(f"参考收益率: {(value1 - value0) / value0*100:.2f}%")
+    
 
     # 可选：保存交易记录
     # pd.DataFrame(trade_log).to_csv('交易记录.csv', index=False)
 
+    return return_rate * 100
+
 
 if __name__ == '__main__':
-    src_fn = r'D:\codes\super-stock\data\HS300.csv'
+    src_fn = r'D:\codes\super-stock\data\SP500.csv'
 
     index_name = split(src_fn)[-1].split('.')[0]
     df = pd.read_csv(src_fn)
 
-    main(df, index_name, diff_thresh=0.04, unit_share=1000, date_step=12)
-    
+    diff_thresh_it = np.arange(0.02, 0.05, 0.001)
+    date_step_it = range(6, 37)
+    res = np.zeros((len(diff_thresh_it), len(date_step_it)))
+    for i, diff_thresh in enumerate(diff_thresh_it):
+        print(f'{i} of {len(diff_thresh_it)}...')
+        for j, date_step in enumerate(tqdm(date_step_it)):
+            return_rate = main(
+                df,
+                index_name,
+                diff_thresh=diff_thresh,
+                unit_share=1000,
+                date_step=date_step,
+                verbose=False)
+            res[i, j] = return_rate
+            # exit(0)
+
+    res_columns = list(date_step_it)
+    res_index = [f'{item:.3f}' for item in diff_thresh_it]
+    df = pd.DataFrame(res, columns=res_columns, index=res_index)
+    # plt.figure(figsize=(12, 8))
+    sns.heatmap(df, annot=True, fmt='.2f', cmap='coolwarm', cbar=True)
+    plt.title(index_name)
+    plt.xlabel('Month step')
+    plt.ylabel('Diff threshold')
+    plt.show() 
