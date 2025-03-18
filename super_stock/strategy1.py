@@ -7,6 +7,7 @@
 import pandas as pd
 import math
 import numpy as np
+import numpy_financial as npf
 from os.path import split
 from tqdm import tqdm
 import seaborn as sns  
@@ -71,6 +72,12 @@ def main(df, index_name, diff_thresh=0.04, unit_share=1000, date_step=36, verbos
     total_assets = total_shares * final_price
     total_return = total_assets - total_investment
 
+    # IRR内部收益
+    final_value = total_assets + money_pool
+    cash_flows = [-unit_share] * (len(monthly_data) - 1) + [final_value - unit_share]
+    monthly_irr = npf.irr(cash_flows)
+    annual_irr = (1 + monthly_irr)**12 - 1
+
     # 输出结果
     value0 = monthly_data[index_name].iloc[0]
     value1 = monthly_data[index_name].iloc[-1]
@@ -80,21 +87,22 @@ def main(df, index_name, diff_thresh=0.04, unit_share=1000, date_step=36, verbos
         print(f"策略执行期间共定投 {len(trade_log)} 次")
         print(f"累计投入本金: {total_investment+money_pool} 元")
         print(f"最终持有份额: {total_shares:.2f}")
-        print(f"最终资产价值: {total_assets+money_pool:.2f} 元")
+        print(f"最终资产价值: {final_value:.2f} 元")
         print(f"绝对收益: {total_return:.2f} 元")
         print(f"收益率: {return_rate*100:.2f}%")
         print(f"年化收益率: {return_rate/num_year*100:.2f}%")
+        print(f"年化IRR收益率: {annual_irr*100:.2f}%")
         print(f"参考收益率: {(value1 - value0) / value0*100:.2f}%")
     
 
     # 可选：保存交易记录
     # pd.DataFrame(trade_log).to_csv('交易记录.csv', index=False)
 
-    return return_rate * 100
+    return annual_irr * 100
 
 
 if __name__ == '__main__':
-    src_fn = r'D:\codes\super-stock\data\SP500.csv'
+    src_fn = r'D:\codes\super-stock\data\HS300.csv'
 
     index_name = split(src_fn)[-1].split('.')[0]
     df = pd.read_csv(src_fn)
