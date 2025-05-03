@@ -102,7 +102,7 @@ def main(df, index_name, diff_thresh=0.04, unit_share=1000, date_step=36, verbos
 
 
 if __name__ == '__main__':
-    src_fn = r'D:\codes\super-stock\data\NASDAQ.csv'
+    src_fn = r'D:\codes\super-stock\data\HSI.csv'
 
     index_name = split(src_fn)[-1].split('.')[0]
     df = pd.read_csv(src_fn)

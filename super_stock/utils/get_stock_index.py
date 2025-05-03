@@ -8,7 +8,8 @@ INDEX_CODE = {
     'HS300': '000300',
     'ZZ500': '000905',
     'SP500': '^GSPC',
-    'NASDAQ': '^IXIC'
+    'NASDAQ': '^IXIC',
+    'HSI': '^HSI'
 }
 
 
@@ -42,7 +43,7 @@ def get_us_index(ticker, name, date0, date1):
 def main(index_name, date0, date1, dst_fn):
     if index_name in ['HS300', 'ZZ500']:
         index_data = get_a_share_index(INDEX_CODE[index_name], index_name, date0, date1)
-    elif index_name in ['SP500', 'NASDAQ']:
+    elif index_name in ['SP500', 'NASDAQ', 'HSI']:
         index_data = get_us_index(INDEX_CODE[index_name], index_name, date0, date1)
     # 处理缺失值并排序
     index_data = index_data.sort_index().dropna(how='all')
@@ -52,7 +53,7 @@ def main(index_name, date0, date1, dst_fn):
 
 if __name__ == '__main__':
     dst_dir = 'D:\codes\super-stock\data'
-    indexes = ['SP500', 'NASDAQ']
+    indexes = ['HSI']
     for index_name in indexes:
         print(f'{index_name}...')
         main(
