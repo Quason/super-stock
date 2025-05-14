@@ -2,18 +2,41 @@ import akshare as ak
 import pandas as pd
 from datetime import datetime, timedelta
 import time
+from tqdm import tqdm
 
 
 def get_all_stocks():
     """获取沪深两市全部A股列表"""
+    # 上证
     sh = ak.stock_info_sh_name_code(symbol="主板A股")  # 证券代码, 证券简称, 公司全称, 上市日期
+    float_data = []
+    for code in tqdm(sh['证券代码'], desc="正在采集数据"):
+        try:
+            profile = ak.stock_individual_info_em(symbol=code)
+            profile_dict = dict(zip(profile['item'], profile['value']))            
+            float_data.append({
+                '证券代码': code,
+                '证券简称': sh.loc[sh['证券代码']==code, '证券简称'].values[0],
+                '上市日期': sh.loc[sh['证券代码']==code, '上市日期'].values[0],
+                '流通股本': float(profile_dict.get('流通股'))
+            })
+            time.sleep(0.5)
+        except Exception as e:
+            print(f"\n获取 {code} 数据失败: {str(e)[:50]}...")
+            continue
+    sh = pd.DataFrame(float_data)
+    
+    # 深证
     sz = ak.stock_info_sz_name_code(symbol="A股列表")  # 板块, A股代码, A股简称, A股上市日期, A股总股本, A股流通股本, 所属行业
-    sz = sz[['A股代码', 'A股简称', 'A股上市日期']].rename(columns={
+    sz['A股流通股本'] = sz['A股流通股本'].str.replace(',', '').astype(float)
+    sz = sz[['A股代码', 'A股简称', 'A股上市日期', 'A股流通股本']].rename(columns={
         'A股代码': '证券代码',
         'A股简称': '证券简称',
-        'A股上市日期': '上市日期'
+        'A股上市日期': '上市日期',
+        'A股流通股本': '流通股本'
     })
-    return pd.concat([sh, sz])[['证券代码', '证券简称', '上市日期']]
+
+    return pd.concat([sh, sz])[['证券代码', '证券简称', '上市日期', '流通股本']]
 
 
 def get_listing_date(stock_code):
